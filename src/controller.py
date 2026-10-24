@@ -1,5 +1,6 @@
 from agent import agent, controller_agent
 from enum import StrEnum
+import psutil
 
 class SwarmType(StrEnum):
     RED_TEAM = "red-team"
@@ -59,11 +60,28 @@ class session:
         return 0
     
 
+class hardware:
+    def __init__(self):
+        self.available_memory = self.get_available_memory()
+        self.available_cpu = self.get_available_cpu()
+    def get_available_memory(self):
+        # retrieve available memory in MB
+        return 1024 * psutil.virtual_memory().available / (1024 * 1024)
+
+    def get_available_cpu(self):
+        # retrieve available CPU percentage
+        return psutil.cpu_percent(interval=1)
+
+
+        
+
 if __name__ == "__main__":
     # Example:
     #   python3 controller.py
-    current_session = session(name="default", type=SwarmType.RED_TEAM, max_depth=2)
-    current_session.spawn_agents_to_max_depth(branching_factor=1)
-    current_session.test_agents()  # optional: requires running Ollama model
+   # current_session = session(name="default", type=SwarmType.RED_TEAM, max_depth=2)
+    #current_session.spawn_agents_to_max_depth(branching_factor=1)
+   # current_session.test_agents()  # optional: requires running Ollama model
     # current_session.test_agents()  # optional: requires running Ollama model
+
+    
     
