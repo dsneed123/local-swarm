@@ -4,31 +4,52 @@ import sys
 
 # main agent class for sending simple requests to Ollama
 class agent:
-    def __init__(self, model: str = "llama3.2", host: str = "http://localhost:11434", depth: int = 1):
+    def __init__(self, role: str, model: str, host: str, context: str = "", depth: int = 0):
+        self.role = role
         self.model = model
         self.client = ollama.Client(host=host)
         self.depth = depth
 
-    # send a single prompt and return only the assistant text
+        system = (
+            f"You are the {role} agent in Local Swarm, a multi-agent system running on "
+            f"local models. Complete the task you're given concisely. If you don't know "
+            f"something, say so instead of guessing."
+        )
+        if context:
+            system += f"\n\nContext:\n{context}"
+
+        self.messages = [{"role": "system", "content": system}]
+
+    # send a prompt, keep it in the conversation history, return the assistant text
     def send_request(self, prompt: str) -> str:
         if not isinstance(prompt, str) or not prompt.strip():
             raise ValueError("prompt must be a non-empty string")
 
-        try:
-            response = self.client.chat(
-                model=self.model,
-                messages=[{"role": "user", "content": prompt}],
-            )
-            return response["message"]["content"]
-        except Exception as e:
-            raise RuntimeError(f"chat request failed: {e}")
+        self.messages.append({"role": "user", "content": prompt})
 
+        try:
+            response = self.client.chat(model=self.model, messages=self.messages)
+        except Exception as e:
+            self.messages.pop()  # don't leave an unanswered prompt in history
+            raise RuntimeError(f"chat request failed: {e}") from e
+
+        reply = response["message"]["content"]
+        self.messages.append({"role": "assistant", "content": reply})
+        return reply
 
 
 # controller agent that spawns sub agents through its session until depth runs out
 class controller_agent(agent):
-    def __init__(self, session, model: str = "llama3.2", host: str = "http://localhost:11434", depth: int = 1):
-        super().__init__(model=model, host=host, depth=depth)
+    def __init__(
+        self,
+        session,
+        role: str,
+        model: str,
+        host: str = "http://localhost:11434",
+        context: str = "",
+        depth: int = 1,
+    ):
+        super().__init__(role=role, model=model, host=host, context=context, depth=depth)
         self.session = session
         self.sub_agents = []
 
@@ -41,7 +62,7 @@ class controller_agent(agent):
         if child_depth > 0:
             new_agent = self.session.create_controller_agent(depth=child_depth)
         else:
-            new_agent = self.session.create_agent(depth=child_depth)
+            new_agent = self.session.create_agent(depth=child_depth, )
         self.sub_agents.append(new_agent)
         return new_agent
 
